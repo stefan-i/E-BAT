@@ -1,0 +1,161 @@
+---
+title: "Evaluation E-Bookpakete"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = FALSE, warning = FALSE, message = FALSE)
+```
+
+
+\
+
+# Auswertung der Nutzungszahlen
+\
+Bei den ausgewerteten Paketen handelt es sich jeweils um die Jahrespakete <Jahr>. Der Auswertungszeitraum ist das Kalenderjahr <Jahr>.
+\
+
+\
+
+```{r}
+# Libraries & Options
+library(tidyverse)
+library(ggplot2)
+library(ggthemes)
+library(scales)
+library(reactable)
+library(data.table)
+options(scipen=999)
+
+# Datenimport Paketmetadaten: Paketname, Paketpreis, Paket_ID
+setwd("<Directory>")
+Pakete <- read.csv("Pakete.csv", sep = ";")
+
+# Zahl Pakete
+n <- length(Pakete$Paket_ID)
+
+# Datenimport Verzeichnis CSV-G:  ISBN, Paket_ID
+setwd("<Directory>/CSV-G")
+files_g <- list.files(pattern = "\\.csv$")
+data_g <- lapply(files_g, fread)
+
+# Datenimport Verzeichnis CSV-N: ISBN, Nutzung
+setwd("<Directory>/CSV-N")
+files_n <- list.files(pattern = "\\.csv$")
+data_n <- lapply(files_n, fread)
+
+# Filtern & Zusammenfassen der Listen
+filter_g <- lapply(data_g, function(x) x%>% select(ISBN,Paket_ID))
+filter_n <- lapply(data_n, function(x) x%>% select(ISBN, Nutzung))
+
+pakete_g <- rbindlist(filter_g, fill=TRUE)
+pakete_n <- rbindlist(filter_n, fill=TRUE)
+
+pakete_gn <- merge(pakete_g, pakete_n, all=T)
+pakete_gn$Nutzung[is.na(pakete_gn$Nutzung)] <- 0
+
+# Einzelpakete anhand Paket_ID von Pakete.csv herausfiltern 
+
+Einzelpakete <- pakete_gn %>% filter(Paket_ID %in% Pakete$Paket_ID)
+Einzelpakete <- as.data.frame(Einzelpakete)
+
+H1 <- Pakete %>% select("Paket_ID", "Paketname")
+Einzelpakete <- merge(Einzelpakete, H1)
+H1 <- NULL
+
+# Nutzungszahlen pro Einzelpaket
+
+for(i in 1:n) {
+  Pakete$Nutzung[i] <- sum(Einzelpakete$Nutzung[which(Einzelpakete$Paket_ID == 
+                                                        Pakete$Paket_ID[i])])
+}
+
+# Zahl enthaltener Titel
+for(i in 1:n) {
+  Pakete$Titelanzahl[i] <- length(which(Einzelpakete$Paket_ID == 
+                                          Pakete$Paket_ID[i]))
+}
+
+# Durchschnittspreis pro Buch
+for(i in 1:n) {
+  Pakete$Preis_pro_Titel[i] <- round(Pakete$Paketpreis[i] / 
+                                       Pakete$Titelanzahl[i])
+}
+
+# CPU 
+for(i in 1:n) {
+  Pakete$CPU[i] <- round(Pakete$Paketpreis[i] / Pakete$Nutzung[i], digits=2)
+}  
+
+# % genutzter Titel
+
+for(i in 1:n) {
+  Pakete$Nichtgenutzte_Titel[i] <- round(length(which(Einzelpakete$Paket_ID == 
+      Pakete$Paket_ID[i] & Einzelpakete$Nutzung ==0)) / 
+      Pakete$Titelanzahl[i], digits=2)
+    }
+
+# Ausgabe interaktive Tabelle
+
+Tabelle <- Pakete %>% select(Paketname, Titelanzahl, Paketpreis, Preis_pro_Titel, 
+                             Nichtgenutzte_Titel, CPU)
+
+colpal <- function(x) rgb(colorRamp(c("#91cf60", "#ffffbf", "#fc8d59"))(x), maxColorValue = 255)
+
+Tabelle$Preis_pro_Titel[is.na(Tabelle$Preis_pro_Titel)] <- 0
+Tabelle$Nichtgenutzte_Titel[is.na(Tabelle$Nichtgenutzte_Titel)] <- 0
+Tabelle$CPU[is.na(Tabelle$CPU)] <- 0
+
+reactable(Tabelle, defaultPageSize = 20, columns = list(
+  Paketname = colDef(name="Paketname"), Titelanzahl = colDef(name="Titelanzahl"),
+  Paketpreis = colDef(name="Paketpreis in CHF"), 
+  Preis_pro_Titel = colDef(name="Preis pro Titel", 
+                           style=function(value) {
+                             normalized <- (value - min(Tabelle$Preis_pro_Titel)) / 
+                               (max(Tabelle$Preis_pro_Titel) - 
+                                  min(Tabelle$Preis_pro_Titel))
+                             color <- colpal(normalized)
+                             list(background=color)
+                           }),
+  Nichtgenutzte_Titel = colDef(name="Nichtgenutzte Titel (%)", 
+                               format = colFormat(percent = TRUE, digits = 0),
+                               style=function(value) {
+                                 normalized <- (value - min(Tabelle$Nichtgenutzte_Titel)) / 
+                                   (max(Tabelle$Nichtgenutzte_Titel) - 
+                                      min(Tabelle$Nichtgenutzte_Titel))
+                                 color <- colpal(normalized)
+                                 list(background=color)
+                               }),   
+  CPU = colDef(name="CPU", style=function(value) {
+                                normalized <- (value - min(Tabelle$CPU)) / 
+                                  (max(Tabelle$CPU) - min(Tabelle$CPU))
+                                color <- colpal(normalized)
+                                list(background=color)
+  })), 
+  style = list(fontFamily = "Calibri, sans-serif", fontSize = "14px")
+  )
+```
+
+
+\
+
+
+# Verteilung der Einzeltitelnutzung
+
+\
+
+
+```{r, fig.width=10,fig.height=11}
+ybreaks <- c(0,10,100,1000)
+
+Einzelpakete %>% 
+  mutate(Paketname = fct_reorder(Paketname, desc(Paketname))) %>%
+  ggplot(aes(Paketname, Nutzung)) + 
+  geom_boxplot(aes(color=Paketname)) + 
+  geom_jitter(color="black",width = 0.05, alpha=0.35) +
+  scale_y_continuous(trans="pseudo_log", breaks=ybreaks) +
+  theme_economist() +
+  theme(axis.title.y=element_blank()) +
+  coord_flip() +
+  theme(legend.position="none")
+ ```
