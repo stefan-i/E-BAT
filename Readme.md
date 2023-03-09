@@ -30,6 +30,9 @@ Die Kennzahlen werden mit der Funktion "Reactable" als interaktive Tabelle ausge
 ## Boxplot der Einzeltitelnutzung
 Mit Hilfe der Funktion ggplot2 werden Boxplots zur grafischen Darstellung der Verteilung der Einzeltitelnutzung innerhalb der Pakete erstellt. Zur besseren Sichtbarkeit auch wenig genutzter Titel werden die Ergebnisse auf einer logarithmischen Skala dargestellt.
 
+## Liste aller erworbenen Titel
+Zusätzlich wird eine Liste alles erworbenen Titel generiert. Die Sortierung kann durch Anklicken der Spaltenüberschriften geändert werden. Die Spalten können durch Eingabe von Text in die leeren Felder gefiltert werden.
+
 ## Ausgabe der Ergebnisse
 Durch Ausführen des R Markdown Dokuments in R Studio wird standardmässig eine HTML-Datei generiert in der alle Ergebnisse zusammengeführt werden. Durch Erweiterung des R Markdown Dokuments können noch beliebige weitere Analysen und Textabschnitte hinzugefügt werden. Es ist auch eine Ausgabe als PDF oder Word (.docx) möglich, allerdings ist die Ergebnistabelle dann statisch und kann nicht mehr durch Anklicken der Spalten neu sortiert werden.
 
